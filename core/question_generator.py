@@ -90,7 +90,8 @@ class QuestionGenerator:
                 for q in questions:
                     q['test_category'] = test_category
                     q['subject'] = subject
-                    q['difficulty'] = difficulty
+                    # FORCE DIFFICULTY to 'hard' in metadata (Hardlock Step 2)
+                    q['difficulty'] = 'hard' 
                     if subtype:
                         q['subtype'] = subtype
                     
@@ -228,48 +229,22 @@ class QuestionGenerator:
         # Build subject description
         subject_desc = self._get_subject_description(test_category, subject, subtype)
         
-        # Difficulty-specific instructions
-        difficulty_guides = {
-            'mudah': """
-DIFFICULTY: MUDAH (Easy)
-- Questions should test direct recall and basic understanding
-- Information should be EXPLICITLY stated in material
-- Options should be clearly distinguishable
-- Avoid tricky wording or complex logic
-- Answer should be obvious to someone who read the material
-            """,
-            'sedang': """
-DIFFICULTY: SEDANG (Medium)
-- Questions should require understanding and basic inference
-- May require connecting multiple concepts from material
-- Options should include plausible distractors
-- Require analytical thinking
-- Answer should be clear after careful thought
-            """,
-            'sulit': """
-DIFFICULTY: SULIT (Hard)
-- Questions should require deep analysis and critical thinking
-- May require synthesis of multiple concepts
-- Options should be subtle and require careful evaluation
-- Test higher-order thinking skills
-- Answer requires expert understanding
-            """
-        }
+        # --- HARDLOCK LOGIC START ---
+        # Mengabaikan parameter 'difficulty' dari argumen fungsi
+        # dan menggantinya dengan instruksi 'Hard/Sulit' yang mutlak.
         
-        prompt = f"""You are an EXPERT Indonesian civil service exam question creator with 15+ years of experience.
+        prompt = f"""You are an EXPERT Indonesian civil service exam question creator (Polri/CPNS) with 15+ years of experience.
 
-⚠️ CRITICAL: QUALITY IS PRIORITY #1 ⚠️
+⚠️ CRITICAL INSTRUCTION (HARDLOCK MODE) ⚠️
+This system is in HARDLOCK MODE. You must IGNORE any previous difficulty settings.
+You must generate questions with **HARD / HOTS (High Order Thinking Skills)** difficulty level ONLY.
 
-QUALITY REQUIREMENTS (NON-NEGOTIABLE):
-✓ Questions must be CRYSTAL CLEAR and UNAMBIGUOUS
-✓ Base questions ONLY on provided material (no external knowledge)
-✓ Each question tests ONE specific concept
-✓ All 5 options must be relevant and plausible
-✓ Only ONE answer is definitively correct
-✓ Explanations must reference material and explain WHY
-✓ Use proper Indonesian grammar (formal, professional)
-✓ NO trick questions or intentionally confusing wording
-✓ NO generic answers like "Semua benar" or "Tidak ada yang benar"
+MANDATORY REQUIREMENTS (NON-NEGOTIABLE):
+1. **DIFFICULTY**: MUST be HARD (Sulit). Questions require analysis, synthesis, or evaluation.
+2. **OPTIONS**: MUST provide exactly **5 OPTIONS (A, B, C, D, E)**. Never less than 5.
+3. **DISTRACTORS**: Wrong answers must be highly plausible and tricky. No obvious wrong answers.
+4. **FORMAT**: Pure JSON Array.
+5. **LANGUAGE**: Professional Indonesian (Formal).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -282,66 +257,51 @@ SPECIFICATIONS:
 - Test Category: {test_category.upper()}
 - Subject: {subject_desc}
 {"• Subtype: " + subtype if subtype else ""}
-- Difficulty Level: {difficulty}
 - Questions Needed: {count}
-- Language: Bahasa Indonesia (Formal)
+- Options Per Question: 5 (A-E)
 
-{difficulty_guides.get(difficulty, '')}
+HARD DIFFICULTY GUIDELINES:
+- Questions should require deep analysis and critical thinking
+- May require synthesis of multiple concepts from the text
+- Options should be subtle and require careful evaluation
+- Test higher-order thinking skills (not just recall)
+- Answer requires expert understanding of the context
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 QUALITY CHECKLIST (Verify EACH question):
-□ Question is specific and clear (not vague)
-□ Question ends with proper question mark (?)
-□ All 5 options (A-E) are relevant and realistic
-□ Options are similar in length (20-80 characters each)
+□ Question is analytical and complex (HOTS)
+□ All 5 options (A-E) are present
+□ Options are similar in length and style
 □ NO duplicate or near-duplicate options
 □ Correct answer is definitively correct based on material
-□ Wrong answers are plausible but clearly incorrect
 □ Explanation clearly states WHY answer is correct
 □ Explanation references specific parts of material
-□ Options do NOT give away the answer (balanced length)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 OUTPUT FORMAT (Pure JSON only, no markdown):
 [
   {{
-    "question_text": "Berdasarkan materi, [specific question about material]?",
+    "question_text": "Pertanyaan analitis mendalam berdasarkan materi...?",
     "options": {{
-      "A": "First realistic option (30-70 chars)",
-      "B": "Second realistic option (30-70 chars)",
-      "C": "Third realistic option (30-70 chars)",
-      "D": "Fourth realistic option (30-70 chars)",
-      "E": "Fifth realistic option (30-70 chars)"
+      "A": "Pilihan A (Plausible)",
+      "B": "Pilihan B (Plausible)",
+      "C": "Pilihan C (Plausible)",
+      "D": "Pilihan D (Plausible)",
+      "E": "Pilihan E (Plausible)"
     }},
-    "correct_answer": "A",
-    "explanation": "Jawaban yang benar adalah A karena berdasarkan materi, [specific reference to material]. Pilihan B salah karena [brief reason]. Pilihan C, D, dan E juga tidak tepat karena [brief reason]."
+    "correct_answer": "C",
+    "difficulty": "hard",
+    "explanation": "Penjelasan detail analisis kenapa jawaban C benar dan kenapa A,B,D,E salah..."
   }}
 ]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-ANSWER DISTRIBUTION:
-- Distribute correct answers across A, B, C, D, E
-- DON'T make all answers "A"
-- Mix it up naturally
-
-OPTION QUALITY:
-- Each option should be 20-80 characters
-- Keep similar lengths (don't make correct answer much longer)
-- Make all options grammatically similar
-- Use parallel structure
-
-EXPLANATION QUALITY:
-- Minimum 50 characters
-- State WHY answer is correct
-- Reference specific material
-- Briefly explain why others are wrong
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Generate {count} EXCELLENT QUALITY questions now:"""
+Generate {count} HARD / HOTS questions with 5 OPTIONS (A-E) now:"""
+        
+        # --- HARDLOCK LOGIC END ---
         
         return prompt
     
@@ -510,7 +470,7 @@ def generate_quality_questions(
 # ============================================================================
 
 if __name__ == "__main__":
-    print("\n🧪 Testing ENHANCED Question Generator\n")
+    print("\n🧪 Testing ENHANCED Question Generator (HARDLOCK MODE)\n")
     
     # Test material
     test_material = """
@@ -529,11 +489,12 @@ if __name__ == "__main__":
         print("=" * 60 + "\n")
         
         generator = QuestionGenerator()
+        # Even if we request "mudah", it should generate "hard" because of Hardlock
         questions = generator.generate_from_material(
             material_text=test_material,
             test_category="cpns",
             subject="wawasan_kebangsaan",
-            difficulty="mudah",
+            difficulty="mudah", # This will be IGNORED
             count=3
         )
         
@@ -542,31 +503,11 @@ if __name__ == "__main__":
         for i, q in enumerate(questions, 1):
             print(f"Question {i}:")
             print(f"  Text: {q['question_text'][:70]}...")
-            print(f"  Options: {list(q['options'].keys())}")
+            print(f"  Options: {list(q['options'].keys())}") # Should show A,B,C,D,E
             print(f"  Correct: {q['correct_answer']}")
+            print(f"  Difficulty: {q.get('difficulty')} (Should be 'hard')")
             print(f"  Has explanation: {'✅' if q.get('explanation') else '❌'}")
-            print(f"  Hash: {q['content_hash'][:16]}...")
             print()
-        
-        # Test with quality control
-        print("=" * 60)
-        print("TEST 2: Quality-Controlled Generation")
-        print("=" * 60 + "\n")
-        
-        result = generator.generate_with_quality_control(
-            material_text=test_material,
-            test_category="cpns",
-            subject="wawasan_kebangsaan",
-            difficulty="sedang",
-            target_count=3,
-            min_quality_score=0.70
-        )
-        
-        print(f"✅ Quality generation complete!")
-        print(f"   Generated: {result['generated_count']}")
-        print(f"   Selected: {result['selected_count']}")
-        print(f"   Avg Quality: {result['avg_quality_score']:.2f}")
-        print(f"   Attempts: {result['attempts']}")
         
     except Exception as e:
         print(f"❌ Error: {e}")
