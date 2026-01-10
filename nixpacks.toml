@@ -1,2 +1,2 @@
 [start]
-cmd = "/opt/venv/bin/python main.py"
+cmd = "python main.py"

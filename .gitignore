@@ -14,8 +14,10 @@ run_*.py
 setup_*.py
 update_*.py
 backup_*
-*.bat
-*.txt
 !requirements.txt
 !README.md
 nuclear_*.py
+!runtime.txt
+!requirements.txt
+nixpacks.toml
+runtime.txt
