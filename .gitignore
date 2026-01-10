@@ -18,3 +18,4 @@ backup_*
 *.txt
 !requirements.txt
 !README.md
+nuclear_*.py
