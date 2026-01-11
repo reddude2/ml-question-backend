@@ -10,18 +10,15 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (for caching)
+# Copy requirements
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install Python packages
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application
 COPY . .
 
-# Expose port (Railway will override this)
-EXPOSE 8000
-
-# Start command - MUST use python -m uvicorn
+# ✅ FIX: Use python -m uvicorn (NOT just uvicorn!)
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
