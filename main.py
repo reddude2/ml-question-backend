@@ -17,6 +17,7 @@ load_dotenv()
 from routers import auth, users, questions, sessions, progress, admin, review
 from routers import exam  # Exam mode router
 from routers import materials  # Materials management router
+from routers import training_pdf
 from middleware.auth import verify_jwt_middleware
 
 # ============================================================================
@@ -208,6 +209,7 @@ app.include_router(progress.router)
 app.include_router(admin.router)
 app.include_router(review.router)
 app.include_router(exam.router)
+app.include_router(training_pdf.router)
 
 # ============================================================================
 # ROOT ENDPOINTS
