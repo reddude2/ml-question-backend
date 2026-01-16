@@ -14,4 +14,6 @@ httpx
 jinja2
 gunicorn
 supabase==2.3.4
+PyJWT==2.8.0
+
 # update force rebuild 1

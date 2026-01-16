@@ -1,23 +1,25 @@
 """
-Training PDF Router (FINAL VERSION - Compatible with existing project)
-Endpoint untuk upload dan view PDF program latihan harian
+Training PDF Router (ULTRA STANDALONE VERSION)
+Completely standalone - no external dependencies
 """
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header
 from fastapi.responses import FileResponse
 from typing import Optional
 import os
 from datetime import datetime
 from supabase import create_client, Client
-from middleware.auth import get_current_user
 from dotenv import load_dotenv
+import jwt
 
 # Load environment variables
 load_dotenv()
 
-# Supabase configuration
+# Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-here")  # Fallback
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 # Initialize Supabase client
 _supabase_client = None
@@ -31,6 +33,38 @@ def get_supabase_client() -> Client:
         _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
     return _supabase_client
 
+# Custom auth dependency (standalone)
+async def get_current_user_standalone(authorization: str = Header(None)):
+    """
+    Standalone authentication function
+    Extracts user from JWT token
+    """
+    if not authorization:
+        raise HTTPException(401, "Missing authorization header")
+    
+    try:
+        # Extract token from "Bearer <token>"
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            raise HTTPException(401, "Invalid authentication scheme")
+        
+        # Decode JWT token
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        
+        # Return user info from token
+        return {
+            "id": payload.get("sub") or payload.get("user_id") or payload.get("id"),
+            "username": payload.get("username") or payload.get("email", "unknown"),
+            "role": payload.get("role", "user_mixed"),
+            "email": payload.get("email")
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Invalid token")
+    except Exception as e:
+        raise HTTPException(401, f"Authentication failed: {str(e)}")
+
 router = APIRouter(
     prefix="/api/training-pdf",
     tags=["Training PDF"],
@@ -41,7 +75,7 @@ router = APIRouter(
 UPLOAD_DIR = "uploads/training_pdfs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Allowed file types
+# Configuration
 ALLOWED_EXTENSIONS = {".pdf"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
@@ -73,11 +107,22 @@ async def upload_training_pdf(
     file: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(""),
-    current_user: dict = Depends(get_current_user)
+    authorization: str = Header(None)
 ):
     """
     Upload PDF Program Latihan (Admin/Pengajar Only)
+    
+    Headers:
+    - Authorization: Bearer <token>
+    
+    Form Data:
+    - file: PDF file (max 10MB)
+    - title: Judul program
+    - description: Deskripsi (optional)
     """
+    
+    # Get current user
+    current_user = await get_current_user_standalone(authorization)
     
     # Check role
     if not check_admin_or_teacher(current_user):
@@ -151,8 +196,16 @@ async def upload_training_pdf(
         raise HTTPException(500, f"Gagal menyimpan metadata: {str(e)}")
 
 @router.get("/latest")
-async def get_latest_pdf(current_user: dict = Depends(get_current_user)):
-    """Get Latest PDF Program Latihan (Semua User)"""
+async def get_latest_pdf(authorization: str = Header(None)):
+    """
+    Get Latest PDF Program Latihan (Semua User)
+    
+    Headers:
+    - Authorization: Bearer <token>
+    """
+    
+    # Authenticate user
+    current_user = await get_current_user_standalone(authorization)
     
     try:
         supabase = get_supabase_client()
@@ -183,9 +236,17 @@ async def get_latest_pdf(current_user: dict = Depends(get_current_user)):
 @router.get("/list")
 async def list_pdfs(
     limit: int = 10,
-    current_user: dict = Depends(get_current_user)
+    authorization: str = Header(None)
 ):
-    """List All PDFs"""
+    """
+    List All PDFs (dengan pagination)
+    
+    Headers:
+    - Authorization: Bearer <token>
+    """
+    
+    # Authenticate user
+    current_user = await get_current_user_standalone(authorization)
     
     try:
         supabase = get_supabase_client()
@@ -212,9 +273,17 @@ async def list_pdfs(
 @router.get("/download/{filename}")
 async def download_pdf(
     filename: str,
-    current_user: dict = Depends(get_current_user)
+    authorization: str = Header(None)
 ):
-    """Download/View PDF File (Semua User)"""
+    """
+    Download/View PDF File (Semua User)
+    
+    Headers:
+    - Authorization: Bearer <token>
+    """
+    
+    # Authenticate user
+    current_user = await get_current_user_standalone(authorization)
     
     file_path = os.path.join(UPLOAD_DIR, filename)
     
@@ -233,10 +302,19 @@ async def download_pdf(
 @router.delete("/{pdf_id}")
 async def delete_pdf(
     pdf_id: int,
-    current_user: dict = Depends(get_current_user)
+    authorization: str = Header(None)
 ):
-    """Delete PDF (Admin/Pengajar Only)"""
+    """
+    Delete PDF (Admin/Pengajar Only)
     
+    Headers:
+    - Authorization: Bearer <token>
+    """
+    
+    # Get current user
+    current_user = await get_current_user_standalone(authorization)
+    
+    # Check role
     if not check_admin_or_teacher(current_user):
         raise HTTPException(403, "Hanya admin atau pengajar yang dapat menghapus PDF")
     
@@ -262,9 +340,18 @@ async def delete_pdf(
         raise HTTPException(500, f"Gagal menghapus PDF: {str(e)}")
 
 @router.get("/stats")
-async def get_pdf_stats(current_user: dict = Depends(get_current_user)):
-    """Get PDF Statistics (Admin/Pengajar Only)"""
+async def get_pdf_stats(authorization: str = Header(None)):
+    """
+    Get PDF Statistics (Admin/Pengajar Only)
     
+    Headers:
+    - Authorization: Bearer <token>
+    """
+    
+    # Get current user
+    current_user = await get_current_user_standalone(authorization)
+    
+    # Check role
     if not check_admin_or_teacher(current_user):
         raise HTTPException(403, "Akses ditolak")
     
@@ -300,12 +387,16 @@ async def get_pdf_stats(current_user: dict = Depends(get_current_user)):
 
 @router.get("/health")
 async def pdf_health_check():
-    """Health check untuk PDF system (No auth required)"""
+    """
+    Health check untuk PDF system
+    NO authentication required
+    """
     return {
         "status": "healthy",
         "service": "training-pdf",
         "upload_dir": UPLOAD_DIR,
         "upload_dir_exists": os.path.exists(UPLOAD_DIR),
         "max_file_size_mb": MAX_FILE_SIZE // (1024 * 1024),
-        "allowed_extensions": list(ALLOWED_EXTENSIONS)
+        "allowed_extensions": list(ALLOWED_EXTENSIONS),
+        "supabase_configured": bool(SUPABASE_URL and SUPABASE_KEY)
     }
