@@ -1,8 +1,6 @@
 """
-Training PDF Router (FIXED VERSION)
+Training PDF Router (FINAL VERSION - Compatible with existing project)
 Endpoint untuk upload dan view PDF program latihan harian
-- Tanpa dependency ke tabel users
-- Validasi role dari JWT token langsung
 """
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
@@ -10,9 +8,28 @@ from fastapi.responses import FileResponse
 from typing import Optional
 import os
 from datetime import datetime
-from supabase import Client
-from database.supabase_client import get_supabase_client
+from supabase import create_client, Client
 from middleware.auth import get_current_user
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Supabase configuration
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Initialize Supabase client
+_supabase_client = None
+
+def get_supabase_client() -> Client:
+    """Get or create Supabase client"""
+    global _supabase_client
+    if _supabase_client is None:
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            raise ValueError("Supabase credentials not configured")
+        _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    return _supabase_client
 
 router = APIRouter(
     prefix="/api/training-pdf",
@@ -30,32 +47,23 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 def validate_pdf_file(file: UploadFile):
     """Validasi file PDF"""
-    # Check extension
     file_ext = os.path.splitext(file.filename)[1].lower()
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(400, "Hanya file PDF yang diperbolehkan")
     
-    # Check MIME type
     if file.content_type != "application/pdf":
         raise HTTPException(400, "Tipe file harus PDF")
     
     return True
 
 def check_admin_or_teacher(current_user: dict):
-    """
-    Check apakah user adalah admin atau pengajar
-    Mendukung berbagai format role
-    """
+    """Check apakah user adalah admin atau pengajar"""
     user_role = current_user.get("role", "").lower()
     
-    # List kata kunci untuk admin/pengajar
     admin_keywords = ["admin", "administrator"]
     teacher_keywords = ["pengajar", "teacher", "guru", "instructor", "tutor"]
     
-    # Check admin
     is_admin = any(keyword in user_role for keyword in admin_keywords)
-    
-    # Check pengajar
     is_teacher = any(keyword in user_role for keyword in teacher_keywords)
     
     return is_admin or is_teacher
@@ -65,20 +73,13 @@ async def upload_training_pdf(
     file: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(""),
-    current_user: dict = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase_client)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Upload PDF Program Latihan (Admin/Pengajar Only)
-    
-    - **file**: File PDF (max 10MB)
-    - **title**: Judul program latihan
-    - **description**: Deskripsi (optional)
-    
-    Returns uploaded PDF metadata
     """
     
-    # Check role - hanya admin dan pengajar yang bisa upload
+    # Check role
     if not check_admin_or_teacher(current_user):
         raise HTTPException(
             status_code=403,
@@ -98,7 +99,6 @@ async def upload_training_pdf(
     try:
         contents = await file.read()
         
-        # Check file size
         if len(contents) > MAX_FILE_SIZE:
             raise HTTPException(400, f"Ukuran file maksimal {MAX_FILE_SIZE // (1024*1024)}MB")
         
@@ -111,13 +111,15 @@ async def upload_training_pdf(
     
     # Save metadata to database
     try:
+        supabase = get_supabase_client()
+        
         pdf_data = {
             "title": title,
             "description": description,
             "filename": safe_filename,
             "original_filename": file.filename,
             "file_size": len(contents),
-            "uploaded_by": current_user.get("id"),  # UUID dari JWT
+            "uploaded_by": current_user.get("id"),
             "uploader_username": current_user.get("username", "unknown"),
             "uploader_role": current_user.get("role", "unknown"),
             "created_at": datetime.now().isoformat(),
@@ -130,8 +132,6 @@ async def upload_training_pdf(
             raise Exception("Gagal menyimpan ke database")
         
         inserted_data = result.data[0]
-        
-        # Add download URL
         inserted_data["pdf_url"] = f"/api/training-pdf/download/{safe_filename}"
         
         return {
@@ -143,7 +143,6 @@ async def upload_training_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        # Rollback: hapus file jika gagal save ke DB
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
@@ -152,18 +151,12 @@ async def upload_training_pdf(
         raise HTTPException(500, f"Gagal menyimpan metadata: {str(e)}")
 
 @router.get("/latest")
-async def get_latest_pdf(
-    current_user: dict = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase_client)
-):
-    """
-    Get Latest PDF Program Latihan (Semua User)
-    
-    Returns PDF terbaru yang masih aktif
-    """
+async def get_latest_pdf(current_user: dict = Depends(get_current_user)):
+    """Get Latest PDF Program Latihan (Semua User)"""
     
     try:
-        # Query PDF terbaru
+        supabase = get_supabase_client()
+        
         result = supabase.table("training_pdfs") \
             .select("*") \
             .eq("is_active", True) \
@@ -175,8 +168,6 @@ async def get_latest_pdf(
             raise HTTPException(404, "Belum ada PDF tersedia")
         
         pdf_data = result.data[0]
-        
-        # Add download URL
         pdf_data["pdf_url"] = f"/api/training-pdf/download/{pdf_data['filename']}"
         
         return {
@@ -192,16 +183,13 @@ async def get_latest_pdf(
 @router.get("/list")
 async def list_pdfs(
     limit: int = 10,
-    current_user: dict = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase_client)
+    current_user: dict = Depends(get_current_user)
 ):
-    """
-    List All PDFs (dengan pagination)
-    
-    Returns list PDF yang masih aktif, sorted by newest
-    """
+    """List All PDFs"""
     
     try:
+        supabase = get_supabase_client()
+        
         result = supabase.table("training_pdfs") \
             .select("*") \
             .eq("is_active", True) \
@@ -209,7 +197,6 @@ async def list_pdfs(
             .limit(limit) \
             .execute()
         
-        # Add download URLs
         for pdf in result.data:
             pdf["pdf_url"] = f"/api/training-pdf/download/{pdf['filename']}"
         
@@ -227,18 +214,13 @@ async def download_pdf(
     filename: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """
-    Download/View PDF File (Semua User)
-    
-    Serves PDF file untuk ditampilkan di browser
-    """
+    """Download/View PDF File (Semua User)"""
     
     file_path = os.path.join(UPLOAD_DIR, filename)
     
     if not os.path.exists(file_path):
         raise HTTPException(404, "File tidak ditemukan")
     
-    # Return file dengan header yang tepat untuk ditampilkan di browser
     return FileResponse(
         file_path,
         media_type="application/pdf",
@@ -251,21 +233,16 @@ async def download_pdf(
 @router.delete("/{pdf_id}")
 async def delete_pdf(
     pdf_id: int,
-    current_user: dict = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase_client)
+    current_user: dict = Depends(get_current_user)
 ):
-    """
-    Delete PDF (Admin/Pengajar Only)
+    """Delete PDF (Admin/Pengajar Only)"""
     
-    Soft delete - set is_active = False
-    """
-    
-    # Check role
     if not check_admin_or_teacher(current_user):
         raise HTTPException(403, "Hanya admin atau pengajar yang dapat menghapus PDF")
     
     try:
-        # Soft delete
+        supabase = get_supabase_client()
+        
         result = supabase.table("training_pdfs") \
             .update({"is_active": False, "updated_at": datetime.now().isoformat()}) \
             .eq("id", pdf_id) \
@@ -285,30 +262,21 @@ async def delete_pdf(
         raise HTTPException(500, f"Gagal menghapus PDF: {str(e)}")
 
 @router.get("/stats")
-async def get_pdf_stats(
-    current_user: dict = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase_client)
-):
-    """
-    Get PDF Statistics (Admin/Pengajar Only)
+async def get_pdf_stats(current_user: dict = Depends(get_current_user)):
+    """Get PDF Statistics (Admin/Pengajar Only)"""
     
-    Returns statistik upload PDF
-    """
-    
-    # Check role
     if not check_admin_or_teacher(current_user):
         raise HTTPException(403, "Akses ditolak")
     
     try:
-        # Count total PDFs
+        supabase = get_supabase_client()
+        
         all_pdfs = supabase.table("training_pdfs").select("id", count="exact").execute()
         active_pdfs = supabase.table("training_pdfs").select("id", count="exact").eq("is_active", True).execute()
-        
-        # Get total file size
         all_active = supabase.table("training_pdfs").select("file_size").eq("is_active", True).execute()
+        
         total_size = sum([pdf.get("file_size", 0) for pdf in all_active.data])
         
-        # Get recent uploads
         recent = supabase.table("training_pdfs") \
             .select("title, created_at, uploader_username") \
             .eq("is_active", True) \
@@ -332,10 +300,7 @@ async def get_pdf_stats(
 
 @router.get("/health")
 async def pdf_health_check():
-    """
-    Health check untuk PDF system
-    Tidak perlu authentication
-    """
+    """Health check untuk PDF system (No auth required)"""
     return {
         "status": "healthy",
         "service": "training-pdf",
