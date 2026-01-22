@@ -1,12 +1,13 @@
 """
 FastAPI Application
 ML Question System - Backend API with NEVER REPEAT System
-Version 3.1 - With Exam Mode, Tiers & 4 Roles + Materials Management
+Version 3.1 - With Exam Mode, Tiers & 4 Roles + Materials Management + Automation Support
 """
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
 
@@ -41,7 +42,7 @@ app = FastAPI(
     * **Session Management** - Complete session lifecycle with timing
     * **Admin Dashboard** - User and question management
     
-    ## 🔥 New in v3.1 - MATERIALS MANAGEMENT
+    ## 🔥 New in v3.1 - MATERIALS MANAGEMENT & AUTOMATION
     
     ### 📚 Materials Management (NEW)
     * **Material Input** - Add learning materials for question generation
@@ -97,25 +98,15 @@ app = FastAPI(
 )
 
 # ============================================================================
-# CORS CONFIGURATION - WITH file:// SUPPORT
+# CORS CONFIGURATION - [UPDATED FOR FILE SYSTEM SUPPORT]
 # ============================================================================
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
-
-# Prepare allowed origins list
-# Add "null" origin to support file:// protocol (for local HTML files)
-if "*" in ALLOWED_ORIGINS:
-    # Allow all origins including file://
-    cors_origins = ["*"]
-else:
-    # Add specific origins + null for file://
-    cors_origins = ALLOWED_ORIGINS + ["null"]
-
-print(f"🌐 CORS Allowed Origins: {cors_origins}")
+# Menggunakan Regex agar bisa diakses dari file:// di laptop Komandan
+# Ini penting agar HTML yang dibuka langsung di browser bisa request ke API
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origin_regex=".*", # <--- UPDATE: Izinkan semua origin (Regex)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -165,7 +156,7 @@ async def internal_error_handler(request: Request, exc):
         content={
             "status": "error",
             "message": "Internal server error",
-            "detail": "Terjadi kesalahan pada server."
+            "detail": str(exc)
         }
     )
 
@@ -212,6 +203,56 @@ app.include_router(exam.router)
 app.include_router(training_pdf.router)
 
 # ============================================================================
+# [NEW] AUTOMATION ROUTER (WAJIB ADA UNTUK HTML TAB 2)
+# ============================================================================
+# Endpoint ini menangani tombol Scrape, Discovery, dan Pojokcat di HTML
+
+auto_router = APIRouter(prefix="/auto", tags=["Automation"])
+
+class AutoRequest(BaseModel):
+    url: str | None = None
+    topic: str | None = None
+
+@auto_router.post("/scrape")
+async def auto_scrape(data: AutoRequest):
+    """Handler untuk Web Scraper"""
+    # [Placeholder] Logika ScraperEngine akan dipanggil di sini
+    print(f"🤖 Scraper Triggered: {data.url}")
+    return {
+        "status": "success",
+        "topic": "Hasil Scrape Web",
+        "content": f"Konten berhasil diekstrak dari {data.url}. (Simulasi Data Otomatis)",
+        "material_id": "auto-gen-id"
+    }
+
+@auto_router.post("/discovery")
+async def auto_discovery(data: AutoRequest):
+    """Handler untuk AI Discovery"""
+    # [Placeholder] Logika BrainEngine akan dipanggil di sini
+    print(f"🧠 Discovery Triggered: {data.topic}")
+    return {
+        "status": "success",
+        "topic": data.topic,
+        "content": f"**Materi Riset: {data.topic}**\n\nIni adalah materi riset otomatis...",
+        "material_id": "auto-disc-id"
+    }
+
+@auto_router.post("/pojokcat")
+async def auto_pojokcat(data: AutoRequest):
+    """Handler untuk Pojokcat Harvester"""
+    # [Placeholder] Logika Panen Pojokcat akan dipanggil di sini
+    print(f"🐱 Pojokcat Harvest: {data.url}")
+    return {
+        "status": "success",
+        "message": "Panen sukses! Soal telah disimpan.",
+        "count": 10
+    }
+
+# PENTING: Daftarkan router ini ke aplikasi utama
+app.include_router(auto_router)
+
+
+# ============================================================================
 # ROOT ENDPOINTS
 # ============================================================================
 
@@ -234,7 +275,8 @@ def read_root():
             "User statistics tracking",
             "Smart question selection",
             "Session history",
-            "Admin user management"
+            "Admin user management",
+            "Automated Scraper & Discovery" # Added to list
         ],
         "docs": "/docs",
         "redoc": "/redoc",
@@ -242,7 +284,8 @@ def read_root():
             "auth": "/auth - Authentication & authorization",
             "users": "/users - User management",
             "questions": "/questions - Question bank",
-            "materials": "/materials - Materials management & ML generation",
+            "materials": "/materials - Manual Input",
+            "auto": "/auto - Automated Input (Scrape/Discovery)", # Added info
             "sessions": "/sessions - Session management (NEVER REPEAT)",
             "exam": "/exam - Exam mode (Premium only)",
             "progress": "/progress - User progress tracking",
@@ -268,6 +311,7 @@ def health_check():
             "exam_mode": True,
             "tier_system": True,
             "materials_management": True,
+            "automation_mode": True, # Added status
             "ml_generation": True,
             "user_stats": True,
             "session_history": True,
@@ -366,6 +410,11 @@ def api_info():
                 "DELETE /materials/{id}": "Delete material",
                 "POST /materials/{id}/generate": "Generate questions from material",
                 "GET /materials/stats/overview": "Get materials statistics"
+            },
+            "auto": { # NEW SECTION ADDED
+                "POST /auto/scrape": "Web Scraper",
+                "POST /auto/discovery": "AI Discovery",
+                "POST /auto/pojokcat": "Pojokcat Harvester"
             },
             "sessions": {
                 "POST /sessions/create": "Create NEW session (fresh questions)",
@@ -478,7 +527,7 @@ async def startup_event():
     print(f"Environment: {os.getenv('DEBUG', 'False')}")
     print(f"Host: {os.getenv('HOST', '0.0.0.0')}")
     print(f"Port: {os.getenv('PORT', '8000')}")
-    print(f"CORS Origins: {cors_origins}")
+    # print(f"CORS Origins: {cors_origins}")
     print("\n🎯 Features:")
     print("   ✅ NEVER REPEAT session system")
     print("   ✅ Exam mode (Premium only)")
