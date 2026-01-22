@@ -1,7 +1,7 @@
 """
 FastAPI Application
 ML Question System - Backend API with NEVER REPEAT System
-Version 3.1 - With Exam Mode, Tiers & 4 Roles + Materials Management + Automation
+Version 3.1 - With Exam Mode, Tiers & 4 Roles + Materials Management + Automation Support
 """
 
 from fastapi import FastAPI, Request, status, APIRouter
@@ -73,6 +73,19 @@ app = FastAPI(
     * **Layer 1**: Global middleware for all requests
     * **Layer 2**: Per-endpoint dependencies with role checking
     * **Layer 3**: Tier-based feature access control
+    
+    ## 📚 Test Categories
+    
+    ### POLRI
+    * Bahasa Inggris
+    * Numerik (Penalaran Numerik)
+    * TIU (Tes Intelegensi Umum)
+    * TWK (Tes Wawasan Kebangsaan)
+    
+    ### CPNS
+    * TIU (Tes Intelegensi Umum)
+    * TWK (Tes Wawasan Kebangsaan)
+    * TKP (Tes Karakteristik Pribadi)
     """,
     version="3.1.0",
     contact={
@@ -85,13 +98,13 @@ app = FastAPI(
 )
 
 # ============================================================================
-# CORS CONFIGURATION - [UPDATED FOR LOCAL HTML SUPPORT]
+# CORS CONFIGURATION - [UPDATED FOR FILE SYSTEM SUPPORT]
 # ============================================================================
 # Menggunakan Regex agar bisa diakses dari file:// di laptop Komandan
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*", # Mengizinkan semua origin (termasuk file lokal)
+    allow_origin_regex=".*", # <--- PENTING: Izinkan semua origin (termasuk null/file://)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -141,7 +154,7 @@ async def internal_error_handler(request: Request, exc):
         content={
             "status": "error",
             "message": "Internal server error",
-            "detail": str(exc) # Menampilkan detail error untuk debugging
+            "detail": str(exc)
         }
     )
 
@@ -167,10 +180,10 @@ async def options_handler(full_path: str):
     )
 
 # ============================================================================
-# ROUTERS - REGISTRATION
+# ROUTERS - REGISTER
 # ============================================================================
 
-# Register existing routers
+# Register all routers
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(questions.router)
@@ -183,9 +196,9 @@ app.include_router(exam.router)
 app.include_router(training_pdf.router)
 
 # ============================================================================
-# [NEW] AUTOMATION ROUTER (Untuk HTML Dashboard Tab 2)
+# [NEW] AUTOMATION ROUTER (WAJIB ADA UNTUK HTML TAB 2)
 # ============================================================================
-# Bagian ini WAJIB ADA agar tombol di HTML tidak error 404
+# Endpoint ini menangani tombol Scrape, Discovery, dan Pojokcat di HTML
 
 auto_router = APIRouter(prefix="/auto", tags=["Automation"])
 
@@ -195,46 +208,40 @@ class AutoRequest(BaseModel):
 
 @auto_router.post("/scrape")
 async def auto_scrape(data: AutoRequest):
-    """
-    Endpoint untuk Web Scraper
-    """
-    # [Placeholder] Di sini panggil logika ScraperEngine Komandan
-    print(f"🤖 Scraping Request: {data.url}")
+    """Handler untuk Web Scraper"""
+    # [Placeholder] Panggil logika ScraperEngine Komandan di sini
+    print(f"🤖 Scraper Triggered: {data.url}")
     return {
         "status": "success",
         "topic": "Hasil Scrape Web",
         "content": f"Konten berhasil diekstrak dari {data.url}. (Simulasi)",
-        "material_id": "auto-scrape-123" 
+        "material_id": "auto-gen-id"
     }
 
 @auto_router.post("/discovery")
 async def auto_discovery(data: AutoRequest):
-    """
-    Endpoint untuk AI Discovery
-    """
-    # [Placeholder] Di sini panggil logika BrainEngine Komandan
-    print(f"🧠 Discovery Request: {data.topic}")
+    """Handler untuk AI Discovery"""
+    # [Placeholder] Panggil logika BrainEngine Komandan di sini
+    print(f"🧠 Discovery Triggered: {data.topic}")
     return {
         "status": "success",
         "topic": data.topic,
-        "content": f"**Materi Riset: {data.topic}**\n\nIni adalah materi hasil riset otomatis...",
-        "material_id": "auto-disc-123"
+        "content": f"**Materi Riset: {data.topic}**\n\nIni adalah materi riset otomatis...",
+        "material_id": "auto-disc-id"
     }
 
 @auto_router.post("/pojokcat")
 async def auto_pojokcat(data: AutoRequest):
-    """
-    Endpoint untuk Pojokcat Harvester
-    """
-    # [Placeholder] Di sini panggil logika Pojokcat Harvester
+    """Handler untuk Pojokcat Harvester"""
+    # [Placeholder] Panggil logika Panen Pojokcat di sini
     print(f"🐱 Pojokcat Harvest: {data.url}")
     return {
         "status": "success",
-        "message": "Soal berhasil dipanen dan disimpan!",
-        "count": 15
+        "message": "Panen sukses! Soal telah disimpan.",
+        "count": 10
     }
 
-# Daftarkan Router Otomasi
+# PENTING: Daftarkan router ini ke aplikasi utama
 app.include_router(auto_router)
 
 
@@ -262,15 +269,16 @@ def read_root():
             "Smart question selection",
             "Session history",
             "Admin user management",
-            "Automated Scraper & Discovery" # Added to list
+            "Automated Scraper & Discovery" # Updated feature list
         ],
         "docs": "/docs",
         "redoc": "/redoc",
         "endpoints": {
             "auth": "/auth - Authentication",
             "users": "/users - User management",
+            "questions": "/questions - Question bank",
             "materials": "/materials - Manual Input",
-            "auto": "/auto - Automated Input (Scrape/Discovery)", # Added info
+            "auto": "/auto - Automated Input", # Added info
             "sessions": "/sessions - Session management",
             "exam": "/exam - Exam mode",
             "admin": "/admin - Admin functions"
@@ -292,7 +300,7 @@ def health_check():
             "exam_mode": True,
             "tier_system": True,
             "materials_management": True,
-            "automation_mode": True, # Added status
+            "automation": True,
             "ml_generation": True,
             "user_stats": True,
             "session_history": True,
@@ -390,7 +398,7 @@ def api_info():
                 "POST /materials/{id}/generate": "Generate questions from material",
                 "GET /materials/stats/overview": "Get materials statistics"
             },
-            "auto": { # NEW SECTION
+            "auto": {
                 "POST /auto/scrape": "Web Scraper",
                 "POST /auto/discovery": "AI Discovery",
                 "POST /auto/pojokcat": "Pojokcat Harvester"
@@ -506,7 +514,7 @@ async def startup_event():
     print(f"Environment: {os.getenv('DEBUG', 'False')}")
     print(f"Host: {os.getenv('HOST', '0.0.0.0')}")
     print(f"Port: {os.getenv('PORT', '8000')}")
-    # print(f"CORS Origins: {cors_origins}") # Regex digunakan sekarang
+    # print(f"CORS Origins: {cors_origins}")
     print("\n🎯 Features:")
     print("   ✅ NEVER REPEAT session system")
     print("   ✅ Exam mode (Premium only)")
