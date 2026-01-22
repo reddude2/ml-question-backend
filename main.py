@@ -215,8 +215,7 @@ class AutoRequest(BaseModel):
 
 @auto_router.post("/scrape")
 async def auto_scrape(data: AutoRequest):
-    """Handler untuk Web Scraper"""
-    # [Placeholder] Logika ScraperEngine akan dipanggil di sini
+    # Simulasi logika ScraperEngine
     print(f"🤖 Scraper Triggered: {data.url}")
     return {
         "status": "success",
