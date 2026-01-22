@@ -100,11 +100,13 @@ app = FastAPI(
 # ============================================================================
 # CORS CONFIGURATION - [UPDATED FOR FILE SYSTEM SUPPORT]
 # ============================================================================
+
 # Menggunakan Regex agar bisa diakses dari file:// di laptop Komandan
+# Ini penting agar HTML yang dibuka langsung di browser bisa request ke API
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*", # <--- PENTING: Izinkan semua origin (termasuk null/file://)
+    allow_origin_regex=".*", # <--- UPDATE: Izinkan semua origin (Regex)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -166,6 +168,11 @@ async def internal_error_handler(request: Request, exc):
 async def options_handler(full_path: str):
     """
     Global OPTIONS handler for CORS preflight requests
+    
+    This handles all OPTIONS requests for CORS preflight checks.
+    Must be defined BEFORE routers to intercept OPTIONS requests.
+    
+    Returns 200 OK with appropriate CORS headers.
     """
     return JSONResponse(
         status_code=200,
@@ -180,7 +187,7 @@ async def options_handler(full_path: str):
     )
 
 # ============================================================================
-# ROUTERS - REGISTER
+# ROUTERS
 # ============================================================================
 
 # Register all routers
@@ -209,19 +216,19 @@ class AutoRequest(BaseModel):
 @auto_router.post("/scrape")
 async def auto_scrape(data: AutoRequest):
     """Handler untuk Web Scraper"""
-    # [Placeholder] Panggil logika ScraperEngine Komandan di sini
+    # [Placeholder] Logika ScraperEngine akan dipanggil di sini
     print(f"🤖 Scraper Triggered: {data.url}")
     return {
         "status": "success",
         "topic": "Hasil Scrape Web",
-        "content": f"Konten berhasil diekstrak dari {data.url}. (Simulasi)",
+        "content": f"Konten berhasil diekstrak dari {data.url}. (Simulasi Data Otomatis)",
         "material_id": "auto-gen-id"
     }
 
 @auto_router.post("/discovery")
 async def auto_discovery(data: AutoRequest):
     """Handler untuk AI Discovery"""
-    # [Placeholder] Panggil logika BrainEngine Komandan di sini
+    # [Placeholder] Logika BrainEngine akan dipanggil di sini
     print(f"🧠 Discovery Triggered: {data.topic}")
     return {
         "status": "success",
@@ -233,7 +240,7 @@ async def auto_discovery(data: AutoRequest):
 @auto_router.post("/pojokcat")
 async def auto_pojokcat(data: AutoRequest):
     """Handler untuk Pojokcat Harvester"""
-    # [Placeholder] Panggil logika Panen Pojokcat di sini
+    # [Placeholder] Logika Panen Pojokcat akan dipanggil di sini
     print(f"🐱 Pojokcat Harvest: {data.url}")
     return {
         "status": "success",
@@ -269,19 +276,21 @@ def read_root():
             "Smart question selection",
             "Session history",
             "Admin user management",
-            "Automated Scraper & Discovery" # Updated feature list
+            "Automated Scraper & Discovery" # Added to list
         ],
         "docs": "/docs",
         "redoc": "/redoc",
         "endpoints": {
-            "auth": "/auth - Authentication",
+            "auth": "/auth - Authentication & authorization",
             "users": "/users - User management",
             "questions": "/questions - Question bank",
             "materials": "/materials - Manual Input",
-            "auto": "/auto - Automated Input", # Added info
-            "sessions": "/sessions - Session management",
-            "exam": "/exam - Exam mode",
-            "admin": "/admin - Admin functions"
+            "auto": "/auto - Automated Input (Scrape/Discovery)", # Added info
+            "sessions": "/sessions - Session management (NEVER REPEAT)",
+            "exam": "/exam - Exam mode (Premium only)",
+            "progress": "/progress - User progress tracking",
+            "admin": "/admin - Admin functions (Admin only)",
+            "review": "/api/review - Review sessions"
         }
     }
 
@@ -289,6 +298,8 @@ def read_root():
 def health_check():
     """
     Health check endpoint
+    
+    Used by monitoring tools to check if API is running
     """
     return {
         "status": "healthy",
@@ -300,7 +311,7 @@ def health_check():
             "exam_mode": True,
             "tier_system": True,
             "materials_management": True,
-            "automation": True,
+            "automation_mode": True, # Added status
             "ml_generation": True,
             "user_stats": True,
             "session_history": True,
@@ -312,12 +323,14 @@ def health_check():
 def api_info():
     """
     Detailed API information
+    
+    Returns comprehensive information about available endpoints and features
     """
     return {
         "api": {
             "name": "ML Question System API",
             "version": "3.1.0",
-            "description": "Backend API for POLRI & CPNS exam preparation"
+            "description": "Backend API for POLRI & CPNS exam preparation with NEVER REPEAT system, Exam Mode, Materials Management, and ML Question Generation"
         },
         "features": {
             "session_management": {
@@ -398,7 +411,7 @@ def api_info():
                 "POST /materials/{id}/generate": "Generate questions from material",
                 "GET /materials/stats/overview": "Get materials statistics"
             },
-            "auto": {
+            "auto": { # NEW SECTION ADDED
                 "POST /auto/scrape": "Web Scraper",
                 "POST /auto/discovery": "AI Discovery",
                 "POST /auto/pojokcat": "Pojokcat Harvester"
