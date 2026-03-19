@@ -1,0 +1,19 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+psycopg2-binary
+sqlalchemy
+pydantic
+google-generativeai
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+PyJWT
+httpx
+jinja2
+gunicorn
+supabase==2.3.4
+PyJWT==2.8.0
+
+# update force rebuild 1
